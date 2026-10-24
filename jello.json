@@ -1,0 +1,8 @@
+{
+  "name": "hush",
+  "version": "0.1.0",
+  "description": "Real-time speech denoising for Jello, on RNNoise",
+  "dev_dependencies": {
+    "degust": {"github": "Lazarus404/degust", "tag": "0.1.0"}
+  }
+}

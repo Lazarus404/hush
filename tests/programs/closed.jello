@@ -1,0 +1,9 @@
+// trap: TYPE_MISMATCH 9:1
+// A denoiser is not used after it is closed.
+load { denoiser_new, denoiser_close, denoiser_voice } from hush;
+typedef Denoiser = abstract;
+let open: () -> Denoiser = denoiser_new;
+let close: (Denoiser) -> Void = denoiser_close;
+let voice: (Denoiser) -> F32 = denoiser_voice;
+let d = open(); close(d);
+voice(d)

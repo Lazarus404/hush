@@ -1,0 +1,37 @@
+package hush;
+
+import type { Test } from std.testing;
+import std.testing as T;
+import { pack, unpack } from hush.Samples;
+import { version } from hush.Meta;
+
+let testVersion = fn(t: Test) {
+  T.equal(t, version(), "0.1.0");
+  null
+};
+
+let testRoundTrip = fn(t: Test) {
+  let samples = [0.1f32, -0.25f32, 0.5f32, -32768.0f32, 32767.0f32];
+  let pcm = pack(samples);
+  T.equal(t, pcm.len(), 20);
+  T.equal(t, pcm.readF32Le(4), -0.25f32);
+  T.equal(t, unpack(pcm), samples);
+  null
+};
+
+let testLittleEndian = fn(t: Test) {
+  T.equal(t, pack([1.0f32]), "\x00\x00\x80\x3f");
+  null
+};
+
+let testEmpty = fn(t: Test) {
+  let none: Array<F32> = [];
+  T.equal(t, pack(none), "");
+  T.equal(t, unpack(""), none);
+  null
+};
+
+let testPartialSample = fn(t: Test) {
+  T.throws(t, fn() { unpack("abc"); null });
+  null
+};

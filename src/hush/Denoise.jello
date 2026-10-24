@@ -1,0 +1,83 @@
+package hush;
+
+/* Speech denoising with RNNoise. A denoiser takes mono audio at 48 kHz, as
+ * Bytes of F32 samples (see hush.Samples), at the scale of 16-bit PCM: from
+ * -32768 to 32767, not -1 to 1. It works a frame of 480 samples, 10 ms, at a
+ * time, and remembers what it has heard, so a stream goes through one
+ * denoiser in order.
+ *
+ * A denoiser stays in the process that made it: RNNoise keeps no lock. */
+
+import { pack, unpack } from hush.Samples;
+
+load { frame_size, denoiser_new, denoiser_close, denoiser_process, denoiser_voice } from hush;
+
+// An RNNoise state.
+typedef Handle = abstract;
+
+let _frameSize: () -> I32 = frame_size;
+let _new: () -> Handle = denoiser_new;
+let _close: (Handle) -> Void = denoiser_close;
+// Denoises a whole number of samples, padding a last frame that is not whole with silence.
+let _process: (Handle, Bytes) -> Bytes = denoiser_process;
+let _voice: (Handle) -> F32 = denoiser_voice;
+
+// The samples in a frame: 480, 10 ms at 48 kHz.
+export const frameSize: I32 = _frameSize();
+
+// The bytes of a frame: frameSize samples of four bytes.
+export const frameBytes: I32 = frameSize * 4;
+
+// The sample rate a denoiser expects, in hertz.
+export const sampleRate: I32 = 48000;
+
+// PCM, unless it is not a whole number of samples.
+let _samples = fn(name: Bytes, pcm: Bytes): Bytes {
+  if (pcm.len() % 4 != 0) {
+    throw `${name}: ${pcm.len()} bytes are not a whole number of samples`;
+  }
+  pcm
+};
+
+/* An RNNoise denoiser, with the state it keeps from frame to frame. Closing
+ * one frees its state at once; a closed denoiser traps when used. An
+ * unclosed denoiser is freed when it is collected. */
+export typedef Denoiser = { let handle: Handle; };
+export prototype Denoiser {
+  // A denoiser that has heard nothing yet.
+  init() { this.handle = _new(); };
+
+  // Frees the denoiser's state now, rather than when it is collected; closing twice does nothing.
+  close(): Null { _close(this.handle); null };
+
+  // Denoises one frame, exactly frameBytes of PCM; any other length throws.
+  frame(pcm: Bytes): Bytes {
+    if (pcm.len() != frameBytes) {
+      throw `Denoiser.frame: a frame is ${frameBytes} bytes, not ${pcm.len()}`;
+    }
+    _process(this.handle, pcm)
+  };
+
+  /* Denoises PCM of any length, a frame at a time, into PCM of the same
+   * length. A last frame that is not whole is denoised as if silence
+   * followed it, so a stream fed in pieces should come in whole frames.
+   * PCM that is not a whole number of samples throws. */
+  process(pcm: Bytes): Bytes { _process(this.handle, _samples("Denoiser.process", pcm)) };
+
+  // Denoises SAMPLES, as process does PCM.
+  processSamples(samples: Array<F32>): Array<F32> { unpack(_process(this.handle, pack(samples))) };
+
+  /* The probability, from 0 to 1, that the last frame denoised held speech;
+   * 0 before any. */
+  voiceProbability(): F32 { _voice(this.handle) };
+};
+
+/* Denoises a whole recording, PCM of any length, with a denoiser of its own;
+ * PCM that is not a whole number of samples throws. */
+export let denoise = fn(pcm: Bytes): Bytes {
+  let checked = _samples("Denoise.denoise", pcm);
+  let denoiser = new Denoiser();
+  let clean = _process(denoiser.handle, checked);
+  denoiser.close();
+  clean
+};

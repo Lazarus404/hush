@@ -1,0 +1,26 @@
+// expect: denoised 4800 samples, 10 frames
+// expect: the noise is at least 10 times quieter: true
+// Denoises 100 ms of hiss, and measures how much quieter it comes out.
+import { denoise, frameSize } from hush.Denoise;
+import { pack, unpack } from hush.Samples;
+
+// The mean square of some samples: their power.
+let power = fn(samples: Array<F32>): F64 {
+  let sum = 0.0;
+  for (s in samples) { sum += (s as F64) * (s as F64); }
+  sum / (samples.len() as F64)
+};
+
+// Hiss: random samples, at the scale of 16-bit PCM.
+let hiss = Array.new<F32>(4800);
+let seed = 12345;
+let i = 0;
+while (i < hiss.len()) {
+  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+  hiss[i] = ((seed % 2001) - 1000) as F32;
+  i++;
+}
+
+let clean = unpack(denoise(pack(hiss)));
+`denoised ${clean.len()} samples, ${clean.len() / frameSize} frames\n`
+  + `the noise is at least 10 times quieter: ${power(clean) * 10.0 < power(hiss)}`

@@ -1,0 +1,56 @@
+package hush;
+
+import type { Test } from std.testing;
+import std.testing as T;
+import degust.Golden as G;
+import { exists, readText } from std.io.File;
+import { denoise } from hush.Denoise;
+import { pack, unpack } from hush.Samples;
+
+const _INPUT = "tests/hush/golden_input_960.f32";
+const _OUTPUT = "tests/hush/golden_denoise_960.f32";
+
+// Two frames of a rising ramp with a little noise on it.
+let goldenPcm = fn(): Array<F32> {
+  let samples = Array.new<F32>(960);
+  let i = 0;
+  while (i < 960) {
+    let tone = 0.5f32 + 0.5f32 * ((i as F32) * 0.25f32);
+    let noise = 0.08f32 * (((i % 7) as F32) * 0.1f32 - 0.3f32);
+    samples[i] = tone + noise;
+    i++;
+  }
+  samples
+};
+
+// The largest difference between two runs of samples of the same length.
+let maxDifference = fn(a: Array<F32>, b: Array<F32>): F32 {
+  let most = 0.0f32;
+  let i = 0;
+  while (i < a.len()) {
+    let d = a[i] - b[i];
+    if (d < 0.0f32) { d = -d; }
+    if (d > most) { most = d; }
+    i++;
+  }
+  most
+};
+
+let testInput = fn(t: Test) {
+  G.equal(t, _INPUT, pack(goldenPcm()));
+  null
+};
+
+/* The denoised ramp, against the golden file. Compilers and processors round
+ * RNNoise's floats differently, so a sample may be off by a little. */
+let testDenoised = fn(t: Test) {
+  let got = denoise(pack(goldenPcm()));
+  if (exists(_OUTPUT) && !G.updating()) {
+    let want = unpack(readText(_OUTPUT));
+    T.equal(t, want.len(), 960);
+    if (want.len() == 960) { T.isTrue(t, maxDifference(unpack(got), want) < 0.001f32); }
+  } else {
+    G.equal(t, _OUTPUT, got);
+  }
+  null
+};

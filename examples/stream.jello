@@ -1,0 +1,27 @@
+// expect: 25 frames, one at a time, as denoising the whole: true
+// expect: frames of speech before the tone: 0
+// Denoises a stream a frame at a time, as audio arriving from a sound card would be.
+import { Denoiser, denoise, frameBytes, frameSize } from hush.Denoise;
+import { pack } from hush.Samples;
+
+// 10 frames of silence, then a tone.
+let samples = Array.new<F32>(25 * frameSize);
+let i = 10 * frameSize;
+while (i < samples.len()) {
+  samples[i] = (6000.0 * Math.sin((i as F64) * 0.04)) as F32;
+  i++;
+}
+let pcm = pack(samples);
+
+let d = new Denoiser();
+let out = Array.new<Bytes>(0);
+let speech = 0;
+let at = 0;
+while (at < pcm.len()) {
+  out.push(d.frame(pcm.substring(at, at + frameBytes)));
+  if (at < 10 * frameBytes && d.voiceProbability() > 0.5f32) { speech++; }
+  at += frameBytes;
+}
+d.close();
+`${out.len()} frames, one at a time, as denoising the whole: ${out.join("") == denoise(pcm)}\n`
+  + `frames of speech before the tone: ${speech}`

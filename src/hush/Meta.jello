@@ -1,0 +1,4 @@
+package hush;
+
+// The version of the hush package.
+export let version = fn(): Bytes { "0.1.0" };

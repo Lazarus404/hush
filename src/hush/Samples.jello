@@ -1,0 +1,27 @@
+package hush;
+
+/* Samples as Bytes: hush takes audio as Bytes of 32-bit floats, least
+ * significant byte first, four bytes a sample. These turn an Array<F32> into
+ * such Bytes and back. */
+
+// The Bytes of SAMPLES, four a sample.
+export let pack = fn(samples: Array<F32>): Bytes {
+  let buffer = Bytes.new(samples.len() * 4);
+  let at = 0;
+  for (sample in samples) { at = Bytes.writeF32Le(buffer, at, sample); }
+  buffer.toString()
+};
+
+// The samples PCM holds; PCM that is not a whole number of samples throws.
+export let unpack = fn(pcm: Bytes): Array<F32> {
+  if (pcm.len() % 4 != 0) {
+    throw `Samples.unpack: ${pcm.len()} bytes are not a whole number of samples`;
+  }
+  let samples = Array.new<F32>(pcm.len() / 4);
+  let i = 0;
+  while (i < samples.len()) {
+    samples[i] = pcm.readF32Le(i * 4);
+    i++;
+  }
+  samples
+};
